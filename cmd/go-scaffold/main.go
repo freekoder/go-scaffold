@@ -15,7 +15,7 @@ func main() {
 		fmt.Printf("error: %v", err)
 		os.Exit(-1)
 	}
-	fmt.Printf("project name: %s", projectName)
+	fmt.Printf("project name: %s\n", projectName)
 
 	projectCfg := config.Config{
 		Name: projectName,
