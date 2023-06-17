@@ -1,68 +1,81 @@
 package scaffold
 
 import (
+	"bufio"
+	"bytes"
+	"fmt"
 	"github.com/freekoder/go-scaffold/internal/config"
 	"github.com/freekoder/go-scaffold/internal/embedfs"
-	"html/template"
-	"os"
+	"text/template"
 )
 
 func Build(outDir string, projectCfg config.Config) error {
-	err := os.MkdirAll(outDir+"/"+projectCfg.Name, os.ModePerm)
+	basePath := createBasePath(outDir, projectCfg.Name)
+	root := NewRoot(basePath)
+
+	err := root.Init()
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
 	}
-	err = os.MkdirAll(outDir+"/"+projectCfg.Name+"/cmd", os.ModePerm)
+	err = root.MkDir("internal")
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
 	}
-	err = os.MkdirAll(outDir+"/"+projectCfg.Name+"/cmd/"+projectCfg.Name, os.ModePerm)
+	mainContent, err := embedfs.ReadFile("cmd/main.go")
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
+	}
+	mainFile := fmt.Sprintf("cmd/service/%s.go", projectCfg.Name)
+	err = root.WriteFile(mainFile, mainContent)
+	if err != nil {
+		return fmt.Errorf("init project: %v", err)
 	}
 
-	content, err := embedfs.GetFileTemplate("go.mod.tmpl")
+	goModTemplate, err := embedfs.ReadTemplate("go.mod.tmpl")
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
 	}
 
-	goModTemplate, err := template.New("go.mod").Parse(string(content))
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Create(outDir + "/" + projectCfg.Name + "/go.mod")
-
-	err = goModTemplate.Execute(f, struct {
+	goModContent, err := execTemplate(goModTemplate, struct {
 		ModuleName string
 	}{ModuleName: projectCfg.Name})
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
 	}
-	f.Close()
-
-	content, err = embedfs.GetFileTemplate("cmd/main.go")
+	err = root.WriteFile("go.mod", goModContent)
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
 	}
 
-	err = os.WriteFile(outDir+"/"+projectCfg.Name+"/cmd/"+projectCfg.Name+"/"+projectCfg.Name+".go", content, 0644)
+	makefileTemplate, err := embedfs.ReadTemplate("Makefile.tmpl")
 	if err != nil {
-		return err
+		return fmt.Errorf("init project: %v", err)
+	}
+	makefileContent, err := execTemplate(makefileTemplate, struct {
+		ModuleName string
+	}{ModuleName: projectCfg.Name})
+	if err != nil {
+		return fmt.Errorf("init project: %v", err)
+	}
+	err = root.WriteFile("Makefile", makefileContent)
+	if err != nil {
+		return fmt.Errorf("init project: %v", err)
 	}
 
-	err = os.MkdirAll(outDir+"/"+projectCfg.Name+"/internal", os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	content, err = embedfs.GetFileTemplate("Makefile")
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(outDir+"/"+projectCfg.Name+"/Makefile", content, 0644)
-	if err != nil {
-		return err
-	}
 	return nil
+}
+
+func execTemplate(tpl *template.Template, data interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	bw := bufio.NewWriter(&buf)
+	err := tpl.Execute(bw, data)
+	if err != nil {
+		return nil, err
+	}
+	_ = bw.Flush()
+	return buf.Bytes(), nil
+}
+
+func createBasePath(outDir string, projectName string) string {
+	return fmt.Sprintf("%s/%s", outDir, projectName)
 }
