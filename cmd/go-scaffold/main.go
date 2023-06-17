@@ -3,5 +3,8 @@ package main
 import "fmt"
 
 func main() {
-	fmt.Println("hello go scaffold")
+	fmt.Print("Enter project name:")
+	var projectName string
+	fmt.Scanf("%s", &projectName)
+	fmt.Printf("project name: %s", projectName)
 }
